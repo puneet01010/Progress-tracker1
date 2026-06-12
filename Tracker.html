@@ -1,0 +1,581 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Progress Tracker"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="theme-color" content="#0f172a"/>
+  <title>Progress Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%; height: 100dvh;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+    }
+    body { display: flex; flex-direction: column; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; top: 56px; left: 50%;
+      transform: translateX(-50%) translateY(-120px);
+      padding: 11px 22px; border-radius: 12px;
+      font-size: 14px; font-weight: 700;
+      z-index: 9999; pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { background:#052e16; border:1px solid #10b981; color:#6ee7b7; }
+    #toast.warn    { background:#450a0a; border:1px solid #ef4444; color:#fca5a5; }
+
+    /* ── MODAL ── */
+    #modal {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.78);
+      z-index:9998; align-items:center; justify-content:center; padding:24px;
+    }
+    #modal.show { display:flex; }
+    #modal-box {
+      background:#1e293b; border-radius:20px; padding:28px 22px;
+      max-width:310px; width:100%; text-align:center;
+    }
+    #modal-box .micon { font-size:38px; margin-bottom:12px; }
+    #modal-box h3 { font-size:17px; font-weight:800; color:#f1f5f9; margin-bottom:7px; }
+    #modal-box p  { font-size:13px; color:#64748b; margin-bottom:22px; line-height:1.5; }
+    .mbtn-row { display:flex; gap:10px; }
+    .mbtn { flex:1; padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .mbtn-cancel { background:#334155; color:#e2e8f0; }
+    .mbtn-del    { background:#ef4444; color:#fff; }
+
+    /* ── HEADER ── */
+    header {
+      background:#0f172a;
+      border-bottom:1px solid #1e293b;
+      padding:12px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      flex-shrink:0;
+      position:sticky; top:0; z-index:100;
+    }
+    .app-title { font-size:18px; font-weight:800; color:#f1f5f9; letter-spacing:-0.4px; }
+    .app-sub   { font-size:11px; color:#475569; margin-top:2px; }
+    .tabs { display:flex; gap:6px; }
+    .tab {
+      padding:7px 15px; border-radius:9px; border:none; cursor:pointer;
+      font-size:13px; font-weight:600; font-family:inherit; transition:all 0.18s;
+    }
+    .tab.on  { background:#6366f1; color:#fff; }
+    .tab.off { background:#1e293b; color:#64748b; }
+
+    /* ── SCROLL AREA ── */
+    #scroll {
+      flex:1; overflow-y:auto; padding:14px 14px 90px;
+      -webkit-overflow-scrolling:touch;
+    }
+
+    /* ── CARD ── */
+    .card { background:#1e293b; border-radius:14px; padding:15px; margin-bottom:12px; }
+
+    /* ── DATE + TARGET ── */
+    .dt-row { display:flex; align-items:center; justify-content:space-between; }
+    .lbl { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:5px; }
+    input[type=date] {
+      background:transparent; border:none; color:#f1f5f9;
+      font-size:16px; font-weight:700; outline:none; font-family:inherit;
+      cursor:pointer;
+    }
+    .tgt-row { display:flex; align-items:center; gap:6px; justify-content:flex-end; }
+    input[type=number] {
+      background:#0f172a; border:1px solid #334155; border-radius:8px;
+      color:#f1f5f9; font-size:15px; font-weight:700; text-align:center;
+      padding:5px 4px; outline:none; font-family:inherit;
+    }
+    .tgt-inp { width:50px; }
+    .unit { font-size:13px; color:#64748b; }
+
+    /* ── PROGRESS ── */
+    .prog-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .prog-lbl  { font-size:13px; font-weight:600; color:#94a3b8; }
+    .prog-val  { font-size:14px; font-weight:700; }
+    .prog-track { background:#0f172a; border-radius:999px; height:10px; overflow:hidden; }
+    .prog-fill  { height:100%; border-radius:999px; transition:width 0.5s ease; }
+    .stats { display:flex; justify-content:space-around; margin-top:13px; }
+    .stat-num { font-size:22px; font-weight:800; }
+    .stat-lbl { font-size:10px; color:#64748b; margin-top:2px; }
+
+    /* ── SECTION LABEL ── */
+    .sec-lbl {
+      font-size:11px; font-weight:700; color:#475569;
+      text-transform:uppercase; letter-spacing:0.9px; margin-bottom:10px;
+    }
+
+    /* ── SUBJECT ROW ── */
+    .srow {
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:10px;
+      background:#0f172a; border:1.5px solid #1e3a5f;
+      margin-bottom:7px; cursor:pointer;
+      transition:border-color 0.2s;
+      user-select:none; -webkit-user-select:none;
+    }
+    .srow.on { border-color:var(--c); }
+    .chk {
+      width:22px; height:22px; border-radius:6px;
+      border:2px solid #475569; background:transparent;
+      display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; font-size:13px; font-weight:800; color:#fff;
+      transition:all 0.18s;
+    }
+    .chk.on { border-color:var(--c); background:var(--c); }
+    .sinfo  { flex:1; min-width:0; }
+    .sname  { font-size:14px; font-weight:600; color:#64748b; }
+    .sname.on { color:#f1f5f9; }
+    .smeta  { font-size:11px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .sarrow { font-size:10px; color:#475569; transition:transform 0.2s; flex-shrink:0; }
+    .sarrow.open { transform:rotate(180deg); }
+
+    /* ── EXPAND FORM ── */
+    .xform {
+      display:none;
+      background:#07111f;
+      border:1.5px solid rgba(255,255,255,0.06);
+      border-top:none;
+      border-radius:0 0 10px 10px;
+      padding:13px;
+      margin-top:-9px;
+      margin-bottom:7px;
+    }
+    .xform.open { display:block; }
+    .flbl { font-size:11px; color:#64748b; margin-bottom:5px; }
+    .finp {
+      width:100%; background:#1e293b; border:1px solid #334155;
+      border-radius:8px; color:#f1f5f9; font-size:14px; padding:9px 11px;
+      outline:none; font-family:inherit; margin-bottom:10px;
+    }
+    .finp:last-child { margin-bottom:0; }
+    .finp:focus { border-color:#6366f1; }
+    .finp.big { font-size:16px; font-weight:700; }
+
+    /* ── BUTTONS ── */
+    .btn-main {
+      width:100%; padding:15px; margin-top:6px;
+      background:linear-gradient(135deg,#6366f1,#818cf8);
+      border:none; border-radius:13px; color:#fff;
+      font-weight:700; font-size:15px; cursor:pointer;
+      font-family:inherit;
+      box-shadow:0 4px 20px rgba(99,102,241,0.28);
+      transition:transform 0.1s, box-shadow 0.1s;
+    }
+    .btn-main:active { transform:scale(0.97); box-shadow:0 2px 10px rgba(99,102,241,0.18); }
+
+    /* ── EMPTY STATE ── */
+    .empty { text-align:center; padding:72px 24px; }
+    .empty .eicon { font-size:52px; margin-bottom:16px; }
+    .empty h2 { font-size:18px; font-weight:700; color:#f1f5f9; margin-bottom:8px; }
+    .empty p  { font-size:13px; color:#64748b; margin-bottom:28px; line-height:1.6; }
+    .btn-start {
+      padding:14px 32px; background:linear-gradient(135deg,#6366f1,#818cf8);
+      border:none; border-radius:13px; color:#fff; font-weight:700;
+      font-size:15px; cursor:pointer; font-family:inherit;
+    }
+
+    /* ── HISTORY ── */
+    .hcard {
+      background:#1e293b; border-radius:14px; padding:14px;
+      margin-bottom:10px; border:1.5px solid transparent;
+      position:relative; cursor:pointer; transition:border-color 0.2s;
+    }
+    .hcard.cur { border-color:#6366f1; }
+    .hcard-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-right:40px; }
+    .hdate { font-weight:700; color:#f1f5f9; font-size:15px; }
+    .hpct  { font-size:12px; font-weight:700; }
+    .hbar  { background:#0f172a; border-radius:999px; height:5px; overflow:hidden; margin-bottom:10px; }
+    .hbar-fill { height:100%; border-radius:999px; }
+    .hmeta { display:flex; gap:14px; margin-bottom:8px; }
+    .hmeta span { font-size:12px; color:#64748b; }
+    .htags { display:flex; flex-wrap:wrap; gap:5px; }
+    .htag  { font-size:11px; background:#0f172a; border-radius:6px; padding:3px 8px; }
+    .del-btn {
+      position:absolute; top:12px; right:12px;
+      background:#1e3a5f; border:none; border-radius:7px;
+      font-size:14px; padding:5px 9px; cursor:pointer; line-height:1;
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="modal">
+  <div id="modal-box">
+    <div class="micon">🗑️</div>
+    <h3>Din delete karna hai?</h3>
+    <p id="mdesc"></p>
+    <div class="mbtn-row">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Rehne Do</button>
+      <button class="mbtn mbtn-del" onclick="confirmDelete()">Delete Karo</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div>
+    <div class="app-title">📚 Progress Tracker</div>
+    <div class="app-sub">Teri preparation, tera record</div>
+  </div>
+  <div class="tabs">
+    <button class="tab on"  id="t-today"   onclick="goTab('today')">Today</button>
+    <button class="tab off" id="t-history" onclick="goTab('history')">History</button>
+  </div>
+</header>
+
+<div id="scroll">
+  <div id="v-today"></div>
+  <div id="v-history" style="display:none"></div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────
+const SECS = [
+  { label:'Core Subjects', emoji:'📘', subs:[
+    {id:'qa', name:'Quantitative Aptitude', c:'#6366f1'},
+    {id:'rs', name:'Reasoning',             c:'#f59e0b'},
+    {id:'en', name:'English',               c:'#10b981'},
+  ]},
+  { label:'GK / GS', emoji:'🌍', subs:[
+    {id:'hi', name:'History',   c:'#ef4444'},
+    {id:'ge', name:'Geography', c:'#14b8a6'},
+    {id:'ec', name:'Economics', c:'#f97316'},
+    {id:'po', name:'Politics',  c:'#a855f7'},
+  ]},
+  { label:'Science', emoji:'🔬', subs:[
+    {id:'ph', name:'Physics',   c:'#3b82f6'},
+    {id:'ch', name:'Chemistry', c:'#ec4899'},
+    {id:'bi', name:'Biology',   c:'#22c55e'},
+  ]},
+];
+const ALL_SUBS = SECS.flatMap(s => s.subs);
+const BY_ID   = Object.fromEntries(ALL_SUBS.map(s => [s.id, s]));
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function newDay() {
+  return {
+    date: todayStr(), targetHours: 4,
+    entries: Object.fromEntries(ALL_SUBS.map(s => [s.id, {hours:0, topic:'', notes:'', on:false}]))
+  };
+}
+
+// ── STATE ─────────────────────────────────────────────
+let S = { days:[], active:null, tab:'today', open:{} };
+
+function load() {
+  try { const d = localStorage.getItem('pt3'); if(d) S = JSON.parse(d); } catch(e){}
+}
+function save() {
+  try { localStorage.setItem('pt3', JSON.stringify(S)); } catch(e){}
+}
+
+// ── TOAST ─────────────────────────────────────────────
+let _tt;
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `show ${type}`;
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.className = '', 2600);
+}
+
+// ── MODAL ─────────────────────────────────────────────
+let _delIdx = null;
+function openDel(i) {
+  _delIdx = i;
+  document.getElementById('mdesc').textContent = (S.days[i]?.date||'') + ' ka sara data chala jayega.';
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal() { _delIdx=null; document.getElementById('modal').classList.remove('show'); }
+function confirmDelete() {
+  if (_delIdx===null) return;
+  const i = _delIdx;
+  S.days.splice(i,1);
+  if (S.active===i)       S.active = S.days.length ? Math.min(i, S.days.length-1) : null;
+  else if (S.active > i)  S.active--;
+  S.open = {};
+  closeModal(); save(); render();
+  toast('🗑️ Din delete ho gaya','warn');
+}
+
+// ── TABS ──────────────────────────────────────────────
+function goTab(tab) {
+  S.tab = tab;
+  document.getElementById('t-today').className   = 'tab ' + (tab==='today'   ? 'on':'off');
+  document.getElementById('t-history').className = 'tab ' + (tab==='history' ? 'on':'off');
+  document.getElementById('v-today').style.display   = tab==='today'   ? 'block':'none';
+  document.getElementById('v-history').style.display = tab==='history' ? 'block':'none';
+  tab==='today' ? renderToday() : renderHistory();
+}
+
+// ── ADD DAY ───────────────────────────────────────────
+function addDay() {
+  S.days.push(newDay());
+  S.active = S.days.length - 1;
+  S.open = {}; S.tab = 'today';
+  save(); render();
+  toast('✅ Naya din shuru ho gaya!');
+  document.getElementById('scroll').scrollTo({top:0, behavior:'smooth'});
+}
+
+// ── TOGGLE CHECK ──────────────────────────────────────
+function toggleCheck(sid) {
+  if (S.active===null) return;
+  const e = S.days[S.active].entries[sid];
+  e.on = !e.on;
+  S.open[sid] = e.on;
+  save(); patchRow(sid); patchProgress();
+}
+
+// ── TOGGLE EXPAND ─────────────────────────────────────
+function toggleExpand(sid) {
+  if (S.active===null) return;
+  const e = S.days[S.active].entries[sid];
+  if (!e.on) return;
+  S.open[sid] = !S.open[sid];
+  patchRow(sid);
+}
+
+// ── LIVE INPUT ────────────────────────────────────────
+function onInput(sid, field, val) {
+  if (S.active===null) return;
+  const e = S.days[S.active].entries[sid];
+  e[field] = field==='hours' ? (parseFloat(val)||0) : val;
+  save(); patchMeta(sid); patchProgress();
+}
+
+// ── PATCH ROW (no re-render) ──────────────────────────
+function patchRow(sid) {
+  const sub = BY_ID[sid];
+  const e   = S.days[S.active].entries[sid];
+  const on  = e.on, isOpen = S.open[sid];
+
+  const row  = document.getElementById('r-'+sid);
+  const chk  = document.getElementById('c-'+sid);
+  const nm   = document.getElementById('n-'+sid);
+  const meta = document.getElementById('m-'+sid);
+  const arr  = document.getElementById('a-'+sid);
+  const form = document.getElementById('f-'+sid);
+  if (!row) return;
+
+  row.className  = 'srow' + (on ? ' on' : '');
+  chk.className  = 'chk'  + (on ? ' on' : '');
+  chk.textContent = on ? '✓' : '';
+  nm.className   = 'sname' + (on ? ' on' : '');
+  arr.style.display = on ? 'block' : 'none';
+  arr.className  = 'sarrow' + (isOpen ? ' open' : '');
+
+  if (on) {
+    let m = e.hours > 0 ? `${e.hours} hrs` : '';
+    if (e.topic) m += (m ? ' · ':'') + e.topic;
+    meta.textContent = m;
+    meta.style.display = m ? 'block':'none';
+  } else { meta.style.display = 'none'; }
+
+  form.className = 'xform' + (on && isOpen ? ' open' : '');
+}
+
+function patchMeta(sid) {
+  const e   = S.days[S.active].entries[sid];
+  const meta = document.getElementById('m-'+sid);
+  if (!meta || !e.on) return;
+  let m = e.hours > 0 ? `${e.hours} hrs` : '';
+  if (e.topic) m += (m ? ' · ':'') + e.topic;
+  meta.textContent = m;
+  meta.style.display = m ? 'block':'none';
+}
+
+function patchProgress() {
+  if (S.active===null) return;
+  const day = S.days[S.active];
+  const total = ALL_SUBS.reduce((a,s) => a + Number(day.entries[s.id].hours||0), 0);
+  const pct   = Math.min((total / day.targetHours) * 100, 100);
+  const grad  = pct>=100
+    ? 'linear-gradient(90deg,#10b981,#34d399)'
+    : 'linear-gradient(90deg,#6366f1,#818cf8)';
+
+  const fill = document.getElementById('pf');
+  const val  = document.getElementById('pv');
+  const num  = document.getElementById('pn');
+  const tgt  = document.getElementById('pt');
+  if (fill) { fill.style.width=pct+'%'; fill.style.background=grad; }
+  if (val)  { val.textContent=`${total.toFixed(1)} / ${day.targetHours} hrs`; val.style.color=pct>=100?'#10b981':'#f1f5f9'; }
+  if (num)  { num.textContent=total.toFixed(1); }
+  if (tgt)  { tgt.textContent=pct>=100?'✅':`${Math.round(pct)}%`; tgt.style.color=pct>=100?'#10b981':'#ef4444'; }
+}
+
+// ── RENDER TODAY ──────────────────────────────────────
+function renderToday() {
+  const box = document.getElementById('v-today');
+  const day = S.active!==null ? S.days[S.active] : null;
+
+  if (!day) {
+    box.innerHTML = `
+      <div class="empty">
+        <div class="eicon">📅</div>
+        <h2>Koi din nahi mila</h2>
+        <p>Aaj ka din start karne ke liye<br>button dabao</p>
+        <button class="btn-start" onclick="addDay()">➕ Aaj Ka Din Shuru Karo</button>
+      </div>`;
+    return;
+  }
+
+  const total = ALL_SUBS.reduce((a,s) => a + Number(day.entries[s.id].hours||0), 0);
+  const pct   = Math.min((total / day.targetHours) * 100, 100);
+  const grad  = pct>=100 ? 'linear-gradient(90deg,#10b981,#34d399)':'linear-gradient(90deg,#6366f1,#818cf8)';
+
+  const secsHTML = SECS.map(sec => {
+    const rows = sec.subs.map(sub => {
+      const e  = day.entries[sub.id];
+      const on = e.on, isOpen = S.open[sub.id];
+      let meta = '';
+      if (on) {
+        if (e.hours>0) meta += `${e.hours} hrs`;
+        if (e.topic)   meta += (meta?' · ':'') + e.topic;
+      }
+      return `
+        <div id="r-${sub.id}" class="srow${on?' on':''}" style="--c:${sub.c}" onclick="toggleExpand('${sub.id}')">
+          <div id="c-${sub.id}" class="chk${on?' on':''}"
+            style="${on?`background:${sub.c};border-color:${sub.c}`:''}"
+            onclick="event.stopPropagation();toggleCheck('${sub.id}')">${on?'✓':''}</div>
+          <div class="sinfo">
+            <div id="n-${sub.id}" class="sname${on?' on':''}">${sub.name}</div>
+            <div id="m-${sub.id}" class="smeta" style="display:${meta?'block':'none'};color:${sub.c}">${meta}</div>
+          </div>
+          <div id="a-${sub.id}" class="sarrow${isOpen?' open':''}" style="display:${on?'block':'none'}">▼</div>
+        </div>
+        <div id="f-${sub.id}" class="xform${on&&isOpen?' open':''}">
+          <div class="flbl">⏱ Hours Padhe</div>
+          <input class="finp big" type="number" min="0" step="0.5" value="${e.hours||0}"
+            oninput="onInput('${sub.id}','hours',this.value)"/>
+          <div class="flbl">📖 Topic / Chapter</div>
+          <input class="finp" type="text" placeholder="Kya padha aaj?" value="${(e.topic||'').replace(/"/g,'&quot;')}"
+            oninput="onInput('${sub.id}','topic',this.value)"/>
+          <div class="flbl">💬 Notes / Difficulty</div>
+          <input class="finp" type="text" placeholder="Koi problem? Revision chahiye?" value="${(e.notes||'').replace(/"/g,'&quot;')}"
+            oninput="onInput('${sub.id}','notes',this.value)"/>
+        </div>`;
+    }).join('');
+    return `
+      <div class="card">
+        <div class="sec-lbl">${sec.emoji} ${sec.label}</div>
+        ${rows}
+      </div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="card">
+      <div class="dt-row">
+        <div>
+          <div class="lbl">📅 Date</div>
+          <input type="date" value="${day.date}"
+            onchange="S.days[S.active].date=this.value;save()"/>
+        </div>
+        <div>
+          <div class="lbl" style="text-align:right">🎯 Daily Target</div>
+          <div class="tgt-row">
+            <input class="tgt-inp" type="number" min="1" max="20" value="${day.targetHours}"
+              oninput="S.days[S.active].targetHours=Number(this.value)||4;save();patchProgress()"/>
+            <span class="unit">hrs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="prog-head">
+        <span class="prog-lbl">Aaj ka Progress</span>
+        <span id="pv" class="prog-val" style="color:${pct>=100?'#10b981':'#f1f5f9'}">${total.toFixed(1)} / ${day.targetHours} hrs</span>
+      </div>
+      <div class="prog-track">
+        <div id="pf" class="prog-fill" style="width:${pct}%;background:${grad}"></div>
+      </div>
+      <div class="stats">
+        <div style="text-align:center">
+          <div id="pn" class="stat-num" style="color:#6366f1">${total.toFixed(1)}</div>
+          <div class="stat-lbl">Hours Padhe</div>
+        </div>
+        <div style="text-align:center">
+          <div id="pt" class="stat-num" style="color:${pct>=100?'#10b981':'#ef4444'}">${pct>=100?'✅':`${Math.round(pct)}%`}</div>
+          <div class="stat-lbl">Target</div>
+        </div>
+      </div>
+    </div>
+
+    ${secsHTML}
+
+    <button class="btn-main" onclick="addDay()">➕ Naya Din Add Karo</button>
+  `;
+}
+
+// ── RENDER HISTORY ────────────────────────────────────
+function renderHistory() {
+  const box = document.getElementById('v-history');
+  if (!S.days.length) {
+    box.innerHTML = `
+      <div class="empty">
+        <div class="eicon">📭</div>
+        <h2>Koi record nahi</h2>
+        <p>Abhi tak koi din add nahi kiya</p>
+      </div>`; return;
+  }
+
+  const cards = [...S.days].reverse().map((d, ri) => {
+    const di = S.days.length - 1 - ri;
+    const total = ALL_SUBS.reduce((a,s) => a + Number(d.entries[s.id].hours||0), 0);
+    const pct   = Math.min((total / d.targetHours)*100, 100);
+    const pClr  = pct>=100 ? '#10b981':'#6366f1';
+    const done  = ALL_SUBS.filter(s => d.entries[s.id].on);
+    const tags  = done.map(s =>
+      `<span class="htag" style="color:${s.c}">✓ ${s.name}${d.entries[s.id].hours?' · '+d.entries[s.id].hours+'h':''}</span>`
+    ).join('');
+    return `
+      <div class="hcard${S.active===di?' cur':''}" onclick="gotoDay(${di})">
+        <button class="del-btn" onclick="event.stopPropagation();openDel(${di})">🗑️</button>
+        <div class="hcard-head">
+          <span class="hdate">${d.date}</span>
+          <span class="hpct" style="color:${pct>=100?'#10b981':'#f59e0b'}">${pct>=100?'✅ Done!':Math.round(pct)+'%'}</span>
+        </div>
+        <div class="hbar"><div class="hbar-fill" style="width:${pct}%;background:${pClr}"></div></div>
+        <div class="hmeta">
+          <span>⏱ ${total.toFixed(1)} hrs</span>
+          <span>🎯 Target: ${d.targetHours} hrs</span>
+          <span>✓ ${done.length} subjects</span>
+        </div>
+        ${tags ? `<div class="htags">${tags}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  box.innerHTML = `<div class="sec-lbl" style="margin-bottom:12px">📋 Puri History</div>${cards}`;
+}
+
+function gotoDay(di) {
+  S.active = di; S.open = {}; S.tab = 'today';
+  save(); goTab('today');
+  document.getElementById('scroll').scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── RENDER ────────────────────────────────────────────
+function render() {
+  goTab(S.tab);
+}
+
+// ── INIT ──────────────────────────────────────────────
+load();
+render();
+</script>
+</body>
+</html>
